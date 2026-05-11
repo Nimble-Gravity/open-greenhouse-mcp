@@ -95,6 +95,12 @@ async def bulk_tag(
     if not candidate_ids:
         return {"error": "No candidate IDs provided.", "status_code": 0}
 
+    if not client.on_behalf_of:
+        return {
+            "error": "On-Behalf-Of is required for this endpoint. Set GREENHOUSE_ON_BEHALF_OF or GREENHOUSE_USER_ID.",
+            "status_code": 422,
+        }
+
     # Resolve tag_name to tag_id (same endpoint as add_tag_to_candidate)
     tags_result = await client.harvest_get_cached(
         "/tags/candidate", params={"per_page": 500, "page": 1}

@@ -77,6 +77,11 @@ async def add_tag_to_candidate(
     candidate_id: search_candidates_by_name. For tag_id: list_tags → match
     by name. For bulk tagging, use bulk_tag instead.
     """
+    if not client.on_behalf_of:
+        return {
+            "error": "On-Behalf-Of is required for this endpoint. Set GREENHOUSE_ON_BEHALF_OF or GREENHOUSE_USER_ID.",
+            "status_code": 422,
+        }
     return await client.harvest_put(f"/candidates/{candidate_id}/tags/{tag_id}")
 
 

@@ -138,14 +138,24 @@ async def test_list_tags(client: GreenhouseClient) -> None:
 
 
 @respx.mock
-async def test_add_tag_to_candidate(client: GreenhouseClient) -> None:
+async def test_add_tag_to_candidate() -> None:
     from greenhouse_mcp.harvest.tags import add_tag_to_candidate
 
+    c = GreenhouseClient(api_key="test", on_behalf_of="12345")
     respx.put(f"{HARVEST_BASE}/candidates/42/tags/7").mock(
         return_value=httpx.Response(200, json={"tag_id": 7})
     )
-    result = await add_tag_to_candidate(client, candidate_id=42, tag_id=7)
+    result = await add_tag_to_candidate(c, candidate_id=42, tag_id=7)
     assert result["tag_id"] == 7
+
+
+@respx.mock
+async def test_add_tag_to_candidate_missing_on_behalf_of(client: GreenhouseClient) -> None:
+    from greenhouse_mcp.harvest.tags import add_tag_to_candidate
+
+    result = await add_tag_to_candidate(client, candidate_id=42, tag_id=7)
+    assert result["status_code"] == 422
+    assert "On-Behalf-Of" in result["error"]
 
 
 @respx.mock
