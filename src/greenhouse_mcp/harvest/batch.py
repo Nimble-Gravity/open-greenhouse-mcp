@@ -85,6 +85,10 @@ async def bulk_tag(
     tag_name: Annotated[
         str, Field(description="Tag name to apply — created on-the-fly if it doesn't exist")
     ],
+    on_behalf_of: Annotated[
+        int | None,
+        Field(description="Greenhouse user ID performing the action — overrides the global setting"),
+    ] = None,
 ) -> dict[str, Any]:
     """Tag multiple candidates in one call. Write operation — rate-limited.
 
@@ -95,31 +99,49 @@ async def bulk_tag(
     if not candidate_ids:
         return {"error": "No candidate IDs provided.", "status_code": 0}
 
+    # Resolve tag_name to tag_id (same endpoint as add_tag_to_candidate)
+    tags_result = await client.harvest_get_cached(
+        "/tags/candidate", params={"per_page": 500, "page": 1}
+    )
+    tag_id: int | None = None
+    for tag in tags_result.get("items", []):
+        if tag.get("name") == tag_name:
+            tag_id = tag["id"]
+            break
+
+    if tag_id is None:
+        create_result = await client.harvest_post(
+            "/tags/candidate", json_data={"name": tag_name}
+        )
+        if client._is_error(create_result):
+            return create_result
+        tag_id = create_result["id"]
+
+    prev = client.on_behalf_of
+    if on_behalf_of is not None:
+        client.set_on_behalf_of(str(on_behalf_of))
+
     successes: list[int] = []
     failures: list[dict[str, Any]] = []
 
-    for cid in candidate_ids:
-        result = await client.harvest_put(
-            f"/candidates/{cid}/tags",
-            json_data={"tag": tag_name},
-        )
-        if "error" in result and "status_code" in result:
-            failures.append(
-                {
-                    "candidate_id": cid,
-                    "error": result["error"],
-                }
-            )
-        else:
-            successes.append(cid)
+    try:
+        for cid in candidate_ids:
+            result = await client.harvest_put(f"/candidates/{cid}/tags/{tag_id}")
+            if client._is_error(result):
+                failures.append({"candidate_id": cid, "error": result["error"]})
+            else:
+                successes.append(cid)
 
-        await asyncio.sleep(0.25)
+            await asyncio.sleep(0.25)
+    finally:
+        client.on_behalf_of = prev
 
     return {
         "total": len(candidate_ids),
         "succeeded": len(successes),
         "failed": len(failures),
         "tag": tag_name,
+        "tag_id": tag_id,
         "successful_ids": successes,
         "failures": failures,
     }
