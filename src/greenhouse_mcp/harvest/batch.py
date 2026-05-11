@@ -85,10 +85,6 @@ async def bulk_tag(
     tag_name: Annotated[
         str, Field(description="Tag name to apply — created on-the-fly if it doesn't exist")
     ],
-    on_behalf_of: Annotated[
-        int | None,
-        Field(description="Greenhouse user ID performing the action — overrides the global setting"),
-    ] = None,
 ) -> dict[str, Any]:
     """Tag multiple candidates in one call. Write operation — rate-limited.
 
@@ -117,24 +113,17 @@ async def bulk_tag(
             return create_result
         tag_id = create_result["id"]
 
-    prev = client.on_behalf_of
-    if on_behalf_of is not None:
-        client.set_on_behalf_of(str(on_behalf_of))
-
     successes: list[int] = []
     failures: list[dict[str, Any]] = []
 
-    try:
-        for cid in candidate_ids:
-            result = await client.harvest_put(f"/candidates/{cid}/tags/{tag_id}")
-            if client._is_error(result):
-                failures.append({"candidate_id": cid, "error": result["error"]})
-            else:
-                successes.append(cid)
+    for cid in candidate_ids:
+        result = await client.harvest_put(f"/candidates/{cid}/tags/{tag_id}")
+        if client._is_error(result):
+            failures.append({"candidate_id": cid, "error": result["error"]})
+        else:
+            successes.append(cid)
 
-            await asyncio.sleep(0.25)
-    finally:
-        client.on_behalf_of = prev
+        await asyncio.sleep(0.25)
 
     return {
         "total": len(candidate_ids),

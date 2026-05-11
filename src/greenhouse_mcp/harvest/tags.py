@@ -70,10 +70,6 @@ async def add_tag_to_candidate(
     *,
     candidate_id: Annotated[int, Field(description="Greenhouse candidate ID")],
     tag_id: Annotated[int, Field(description="Tag ID to apply — get from list_tags or create_tag")],
-    on_behalf_of: Annotated[
-        int | None,
-        Field(description="Greenhouse user ID performing the action — overrides the global setting"),
-    ] = None,
 ) -> dict[str, Any]:
     """Apply a tag to a candidate. Write operation.
 
@@ -81,13 +77,7 @@ async def add_tag_to_candidate(
     candidate_id: search_candidates_by_name. For tag_id: list_tags → match
     by name. For bulk tagging, use bulk_tag instead.
     """
-    prev = client.on_behalf_of
-    if on_behalf_of is not None:
-        client.set_on_behalf_of(str(on_behalf_of))
-    try:
-        return await client.harvest_put(f"/candidates/{candidate_id}/tags/{tag_id}")
-    finally:
-        client.on_behalf_of = prev
+    return await client.harvest_put(f"/candidates/{candidate_id}/tags/{tag_id}")
 
 
 async def remove_tag_from_candidate(
